@@ -1,0 +1,101 @@
+---
+- name: Create snapshots of all EBS volumes and Create and send SNS notifications
+  hosts: aws_local
+  gather_facts: true
+  vars_prompt:
+    - name: "aws_profile"
+      prompt: " Enter your AWS profile "
+      private: false
+  vars:
+    #region: "us-east-1"  # Replace with your desired AWS region
+    email_subscription: "george_darby98@hotmail.com"  # Replace with your desired email address
+    script_path: "/home/cyber/repos/karl-class-devops/ansible/playbooks"
+    snapshot_description: "Ansible- EBS volumn snapshot as on {{ ansible_date_time.date }}"
+    python_script_name: "ebs_snapshot_status.py"
+    snapshot_tags_name: "EBS Snapshot"
+    snapshot_tags_env: "Production"
+    sns_topic_name: "my-sns-topic"
+  tasks:
+    - name: Create SNS Topic
+      sns_topic:
+        profile: "{{ aws_profile }}"
+        name:  "{{  sns_topic_name }}"
+        state: present
+        display_name: "EBS_Snapshot_Notifications"
+        delivery_policy:
+          http:
+            defaultHealthyRetryPolicy:
+              minDelayTarget: 2
+              maxDelayTarget: 4
+              numRetries: 9
+              numMaxDelayRetries: 5
+              numMinDelayRetries: 2
+              numNoDelayRetries: 2
+              backoffFunction: "linear"
+            disableSubscriptionOverrides: True
+            defaultThrottlePolicy:
+              maxReceivesPerSecond: 10
+        subscriptions:
+          - endpoint: "{{ email_subscription }}"
+            protocol: "email"
+      register: sns_topic
+
+    - name: Get EC2 instance information
+      ec2_instance_info:
+        profile: "{{ aws_profile }}"
+      register: instance_info
+
+    - name: Create EBS snapshots
+      ec2_snapshot:
+        profile: "{{ aws_profile }}"
+        volume_id: "{{ item }}"
+        description: "{{ snapshot_description }}"
+      loop: "{{ instance_info.instances | json_query('[].block_device_mappings[].ebs.volume_id') }}"
+      loop_control:
+        loop_var: item
+      register: snapshot_info
+
+    - name: Add Tags to the EBS Snapshots
+      ec2_tag:
+        profile: "{{ aws_profile }}"
+        resource: "{{ item }}"
+        tags:
+          name: "{{ snapshot_tags_name }}"
+          env: "{{ snapshot_tags_env }}"
+
+      with_items: "{{ snapshot_info.results | json_query('[].snapshot_id') }}"
+      loop_control:
+        loop_var: item
+
+    - name: Copy Python script to target system
+      copy:
+        src: "{{script_path}}/{{ python_script_name }}"
+        dest: "/tmp/{{ python_script_name }}"
+        mode: "0755"
+      register: copy_ebs_info_py
+
+    - name: Execute Python script to gather Latest EBS volumn snahsot status
+      shell: python3 /tmp/{{ python_script_name }} "{{ aws_profile }}"
+      when: copy_ebs_info_py.failed == false
+      register: copy_ebs_info_py_out
+      #ignore_errors: true
+
+    - debug:
+        var: copy_ebs_info_py_out.stdout_lines
+      when: copy_ebs_info_py_out.rc == 0
+
+    - debug:
+        msg: "Could not execute the python3 /tmp/{{ python_script_name }}"
+      when: copy_ebs_info_py_out.rc != 0
+
+    - name: Publish SNS Message
+      sns:
+        topic: "{{  sns_topic_name }}"
+        subject: "EBS snapshots Creation Status"
+          #msg: " {{ copy_ebs_info_py_out.stdout_lines }} "
+        msg: "{% for item in copy_ebs_info_py_out.stdout_lines %}{{ item + '\n'}}{% endfor %}"
+        profile: "{{ aws_profile }}"
+    - name: delete /tmp/{{ python_script_name }}
+      file:
+        path: "/tmp/{{ python_script_name }}"
+        state: absent

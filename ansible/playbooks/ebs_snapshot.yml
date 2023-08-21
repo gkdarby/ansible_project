@@ -1,0 +1,36 @@
+---
+- name: Create snapshots of all EBS volumes and send SNS notifications
+  hosts: ubuntu_servers
+  gather_facts: false
+  vars:
+    aws_access_key: "AKIARTKRS73N7GBDFHUU"
+    aws_secret_key: "6UufjhFTsyEWI9o/JG8xW5wwd+sg3QLr6CMFZlvg"
+    region: "us-east-1"  # Replace with your desired AWS region
+    snapshot_description: "EBS Volumn Backup Via Ansible"
+    email_subscription: "doewleh@gmail.com"  # Replace with your desired email address
+
+  tasks:
+    - name: Get list of all EC2 instances
+      ec2_instance_info:
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        region: "{{ region }}"
+      register: ec2_instances_info
+
+    - debug:
+          msg: "Volume ID: {{ item }}"
+      loop: "{{ ec2_instances_info.instances | json_query('[].block_device_mappings[0].ebs.volume_id') }}"
+      loop_control:
+        loop_var: item
+   
+    - name: Take EBS Snapshot
+      ec2_snapshot:
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        region: "{{ region }}"
+        volume_id: "{{ item }}"
+        description: "{{ snapshot_description }}"
+      loop: "{{ ec2_instances_info.instances | json_query('[].block_device_mappings[0].ebs.volume_id') }}"
+      loop_control:
+        loop_var: item
+      register: snapshot_result

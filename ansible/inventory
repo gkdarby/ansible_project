@@ -1,0 +1,6 @@
+[ubuntu_servers]
+52.91.50.190 ansible_ssh_private_key_file=~/.ssh/vision-kp.pem ansible_user=ubuntu
+54.162.159.102 ansible_ssh_private_key_file=~/.ssh/vision-kp.pem ansible_user=ubuntu
+[linux_servers]
+3.208.26.79 ansible_ssh_private_key_file=~/.ssh/vision-kp.pem ansible_user=ec2-user
+34.229.113.251 ansible_ssh_private_key_file=~/.ssh/vision-kp.pem ansible_user=ec2-user

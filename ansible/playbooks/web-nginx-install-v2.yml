@@ -1,0 +1,46 @@
+---
+
+- hosts: web_servers
+  become: true
+  tasks:
+  - name: Install Updates
+    ansible.builtin.apt:
+      update_cache: yes
+
+  - name: Install Latest Version of Nginx
+    ansible.builtin.apt:
+      name: nginx
+      state: latest
+
+  - name: copy web contents to web server
+    ansible.builtin.copy:
+      src: ../files/index.html
+      dest: /var/www/html/
+      owner: cyber
+      group: cyber
+      mode: '0644'
+
+  - name: Start service httpd, if not started
+    ansible.builtin.service:
+      name: nginx
+      state: restarted
+
+################### Uninstall Nginx from DB server and Install Database ##################
+- hosts: db_servers
+  become: true
+  tasks:
+  - name: Install Updates
+    ansible.builtin.apt:
+      update_cache: yes
+
+  - name: Uninstall Nginx from DB servers
+    ansible.builtin.apt:
+      name: nginx
+      state: absent
+      autoremove: true
+      autoclean: true
+
+  - name: Install Maria DB server
+    ansible.builtin.apt:
+      name: mariadb-server
+      state: latest

@@ -1,0 +1,18 @@
+---
+- name: Check Latest snapshots of all EBS volumes and send SNS notifications
+  hosts: aws_local
+  gather_facts: false
+  vars_prompt:
+    - name: "aws_profile"
+      prompt: " Enter your AWS profile name: "
+      private: false
+  vars:
+    #region: "us-east-1"  # Replace with your desired AWS region
+    email_subscription: "george_darby98@hotmail.com"  # Replace with your desired email address
+    script_path: "/home/cyber/repos/karl-class-devops/ansible/playbooks"
+    python_script_name: "ebs_snapshot_status.py"
+    sns_topic_name : "my-sns-topic"
+  tasks:
+
+    - name: cehclig the login
+      shell: "ls -ltr"

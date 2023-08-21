@@ -1,0 +1,61 @@
+---
+- name: Monitor System Usage on Linux
+  hosts: linux_servers
+  become: true
+  tasks:
+    - name: Install pip3 on target hosts
+      yum:
+        name: python3-pip
+        state: present
+    - name: Install psutil on target cloud_servers
+      pip:
+        name: psutil
+        state: present
+    - name: Create Python script to monitor system
+      copy:
+        content: >
+          import psutil
+
+
+          # CPU Usage
+
+          cpu_percent = psutil.cpu_percent(interval=1)
+
+          print("Current CPU Usage: {}%".format(cpu_percent))
+
+          print("----------------------------------------------")
+
+          # Memory Usage
+
+          memory = psutil.virtual_memory()
+
+          print("Total Memory: {:.2f} GB".format(memory.total / (1024.0 ** 3)))
+
+          print("Used Memory: {:.2f} GB".format(memory.used / (1024.0 ** 3)))
+
+          print("Free Memory: {:.2f} GB".format(memory.available / (1024.0 ** 3)))
+
+          print("----------------------------------------------")
+
+          # System Paging
+
+          paging = psutil.swap_memory()
+
+          print("Total Paging Memory: {:.2f} GB".format(paging.total / (1024.0 ** 3)))
+
+          print("Used Paging Memory: {:.2f} GB".format(paging.used / (1024.0 ** 3)))
+
+          print("Free Paging Memory: {:.2f} GB".format(paging.free / (1024.0 ** 3)))
+        dest: /tmp/system_monitor.py
+        mode: "0755"
+      register: copy_system_monitor
+    - name: Execute Python script to monitor system
+      command: python3 /tmp/system_monitor.py
+      when: copy_system_monitor.failed == false
+      register: system_monitor_out
+    - debug:
+        var: system_monitor_out.stdout_lines
+      when: system_monitor_out.rc == 0
+    - debug:
+        msg: "Could not execute the python3 /tmp/system_monitor.py "
+      when: system_monitor_out.rc != 0
